@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chrome Dino Game - Cheat Edition</title>
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        body {
+            background-color: #f7f7f7;
+            font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            overflow: hidden;
+            flex-direction: column;
+        }
+        #game-container {
+            position: relative;
+            width: 600px;
+            height: 150px;
+            background-color: #fff;
+            border-bottom: 2px solid #535353;
+            overflow: hidden;
+        }
+        canvas {
+            display: block;
+        }
+        /* Cheat Menu Style */
+        #cheat-menu {
+            margin-top: 20px;
+            background: #ffffff;
+            border: 1px solid #ccc;
+            padding: 15px;
+            border-radius: 8px;
+            width: 600px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        .menu-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #535353;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+        .control-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 13px;
+            color: #535353;
+        }
+        input[type="checkbox"] {
+            width: 16px;
+            height: 16px;
+            cursor: pointer;
+        }
+        input[type="range"] {
+            cursor: pointer;
+            accent-color: #535353;
+        }
+        #instructions {
+            margin-top: 10px;
+            font-size: 12px;
+            color: #777;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas" width="600" height="150"></canvas>
+    </div>
+
+    <!-- Cheat Menu Widget -->
+    <div id="cheat-menu">
+        <div class="menu-title">🛠️ Dino Cheat Engine v1.0</div>
+        <div class="control-group">
+            <div class="control-item">
+                <input type="checkbox" id="godMode" checked>
+                <label tribe="godMode">无敌模式 (God Mode)</label>
+            </div>
+            <div class="control-item">
+                <label tribe="speedRange">游戏速度 (Speed): <span id="speedValue">6</span></label>
+                <input type="range" id="speedRange" min="2" max="25" value="6">
+            </div>
+        </div>
+    </div>
+
+    <div id="instructions">按 <b>空格键 (Space)</b> 或 <b>上方向键 (↑)</b> 跳跃</div>
+
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+
+// Cheat Controls DOM
+const godModeCheckbox = document.getElementById('godMode');
+const speedRange = document.getElementById('speedRange');
+const speedValueDisplay = document.getElementById('speedValue');
+
+// Global Game Variables
+let gameSpeed = parseInt(speedRange.value);
+let score = 0;
+let highScore = 0;
+let isGameOver = false;
+let obstacles = [];
+let frameCount = 0;
+
+// Update UI text on slider change
+speedRange.addEventListener('input', (e) => {
+    gameSpeed = parseInt(e.target.value);
+    speedValueDisplay.textContent = gameSpeed;
+});
+
+// Retro Drawing Elements (Pixel Art Simulation via simple Canvas API)
+const dino = {
+    x: 50,
+    y: 110,
+    width: 20,
+    height: 24,
+    gravity: 0.6,
+    lift: -10,
+    velocity: 0,
+    isJumping: false,
+    draw() {
+        ctx.fillStyle = '#535353';
+        // Base Dino Body
+        ctx.fillRect(this.x, this.y, this.width, this.height);
+        // Eye (White dot)
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(this.x + 12, this.y + 4, 2, 2);
+    },
+    jump() {
+        if (!this.isJumping) {
+            this.velocity = this.lift;
+            this.isJumping = true;
+        }
+    },
+    update() {
+        this.velocity += this.gravity;
+        this.y += this.velocity;
+
+        // Ground constraint
+        if (this.y > 110) {
+            this.y = 110;
+            this.velocity = 0;
+            this.isJumping = false;
+        }
+    }
+};
+
+class Obstacle {
+    constructor() {
+        this.x = canvas.width;
+        this.y = 114;
+        this.width = 15;
+        this.height = 20 + Math.random() * 15; // Random cactus heights
+    }
+    draw() {
+        ctx.fillStyle = '#535353';
+        ctx.fillRect(this.x, this.y - (this.height - 20), this.width, this.height);
+    }
+    update() {
+        this.x -= gameSpeed;
+    }
+}
+
+function spawnObstacles() {
+    frameCount++;
+    // Spawn standard intervals randomized slightly
+    let spawnRate = Math.max(40, 100 - gameSpeed * 2);
+    if (frameCount % Math.floor(spawnRate) === 0) {
+        obstacles.push(new Obstacle());
+    }
+}
+
+function handleCollisions() {
+    // Skip calculations entirely if God Mode is on
+    if (godModeCheckbox.checked) return;
+
+    for (let obs of obstacles) {
+        if (
+            dino.x < obs.x + obs.width &&
+            dino.x + dino.width > obs.x &&
+            dino.y < (obs.y - (obs.height - 20)) + obs.height &&
+            dino.y + dino.height > (obs.y - (obs.height - 20))
+        ) {
+            isGameOver = true;
+        }
+    }
+}
+
+function drawScore() {
+    ctx.fillStyle = '#535353';
+    ctx.font = '12px "Courier New", Courier, monospace';
+    
+    // Formatting match original layout
+    let scoreStr = String(Math.floor(score)).padStart(5, '0');
+    let hiScoreStr = String(Math.floor(highScore)).padStart(5, '0');
+    
+    ctx.fillText(`HI ${hiScoreStr}  ${scoreStr}`, canvas.width - 120, 20);
+}
+
+function resetGame() {
+    isGameOver = false;
+    score = 0;
+    obstacles = [];
+    frameCount = 0;
+    dino.y = 110;
+    dino.velocity = 0;
+    loop();
+}
+
+// Controls
+window.addEventListener('keydown', (e) => {
+    if (e.code === 'Space' || e.code === 'ArrowUp') {
+        if (isGameOver) {
+            resetGame();
+        } else {
+            dino.jump();
+        }
+    }
+});
+
+// Main Loop
+function loop() {
+    if (isGameOver) {
+        if (score > highScore) highScore = score;
+        
+        ctx.fillStyle = '#535353';
+        ctx.font = 'bold 16px "Courier New", Courier, monospace';
+        ctx.fillText('G A M E  O V E R', canvas.width / 2 - 65, canvas.height / 2 - 10);
+        ctx.font = '11px "Courier New", Courier, monospace';
+        ctx.fillText('PRESS SPACE TO RESTART', canvas.width / 2 - 65, canvas.height / 2 + 15);
+        return;
+    }
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+    // Update & Render Objects
+    dino.update();
+    dino.draw();
+
+    spawnObstacles();
+
+    for (let i = obstacles.length - 1; i >= 0; i--) {
+        obstacles[i].update();
+        obstacles[i].draw();
+
+        // Remove offscreen objects
+        if (obstacles[i].x + obstacles[i].width < 0) {
+            obstacles.splice(i, 1);
+        }
+    }
+
+    handleCollisions();
+    
+    // Normal score dynamic acceleration
+    score += 0.15;
+    
+    drawScore();
+
+    requestAnimationFrame(loop);
+}
+
+// Start game initially
+loop();
+</script>
+</body>
+</html>
